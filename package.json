@@ -8,6 +8,7 @@
     "deploy": "vercel"
   },
   "dependencies": {
+    "@generationsoftware/hyperstructure-client-js": "^1.16.2",
     "@paywithglide/glide-js": "^0.9.21",
     "dotenv": "^16.4.5",
     "frog": "latest",
