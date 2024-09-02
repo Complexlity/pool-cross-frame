@@ -8,8 +8,12 @@
     "deploy": "vercel"
   },
   "dependencies": {
+    "@paywithglide/glide-js": "^0.9.21",
+    "dotenv": "^16.4.5",
     "frog": "latest",
-    "hono": "^4"
+    "hono": "^4",
+    "viem": "^2.21.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "tsx": "^4.7.1",

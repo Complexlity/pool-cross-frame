@@ -3,6 +3,8 @@ import { devtools } from "frog/dev";
 import { serveStatic } from "frog/serve-static";
 // import { neynar } from 'frog/hubs'
 import { handle } from "frog/vercel";
+import { GLIDE_CONFIG } from "../utils/services.js";
+import { config } from "../utils/config.js";
 
 // Uncomment to use Edge Runtime.
 // export const config = {
@@ -20,6 +22,7 @@ export const app = new Frog({
 app.frame("/", (c) => {
   const { buttonValue, inputText, status } = c;
   const fruit = inputText || buttonValue;
+  console.log(config);
   return c.res({
     image: (
       <div
