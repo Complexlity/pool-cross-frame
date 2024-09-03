@@ -9,10 +9,11 @@
   },
   "dependencies": {
     "@generationsoftware/hyperstructure-client-js": "^1.16.2",
-    "@paywithglide/glide-js": "^0.9.21",
+    "@paywithglide/glide-js": "latest",
     "dotenv": "^16.4.5",
     "frog": "latest",
     "hono": "^4",
+    "uni-farcaster-sdk": "latest",
     "viem": "^2.21.1",
     "zod": "^3.23.8"
   },

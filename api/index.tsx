@@ -1,3 +1,4 @@
+import fs from "fs";
 import { vaultABI } from "@generationsoftware/hyperstructure-client-js";
 import { Button, Frog, TextInput } from "frog";
 import { devtools } from "frog/dev";
@@ -24,14 +25,16 @@ type State = {
   paymentOptions: {
     [key: string]: { balance: number; currencySymbol: string };
   } | null;
+  paymentOptionsOrder: string[];
 };
 export const app = new Frog<{ State: State }>({
   assetsPath: "/",
   basePath: "/api",
   initialState: {
+    userAddress: "0x5C0A0D794558eaA0029C01E8b5B4Eac2425c9Ad3",
     vault: vaultList[0],
-    userAddress: null,
     paymentOptions: null,
+    paymentOptionsOrder: [],
   },
   title: "Frog Frame",
 });
@@ -45,7 +48,7 @@ app.frame("/", (c) => {
         </p>
       </div>
     ),
-    action: "/vaults",
+    action: "/vaults/1",
     intents: [
       <Button value={"0"}>przUSDC OP</Button>,
       <Button value={"1"}>przUSDC BASE</Button>,
@@ -54,9 +57,15 @@ app.frame("/", (c) => {
   });
 });
 
-app.frame("/vaults", async (c) => {
+app.frame("/vaults/:page", async (c) => {
   const { buttonIndex, deriveState, previousState, buttonValue } = c;
   const value = Number(buttonValue);
+
+  let paymentOptions = previousState.paymentOptions;
+  let paymentOptionsOrder = previousState.paymentOptionsOrder;
+  let page = Number(c.req.param("page"));
+  if (isNaN(page)) page = 1;
+  let nextPage = page + 1;
   let vault = previousState.vault;
   if (value && !isNaN(value)) {
     vault = vaultList[value];
@@ -64,26 +73,42 @@ app.frame("/vaults", async (c) => {
       state.vault = vault;
     });
   }
-  const userAddress = previousState.userAddress;
-  if (!userAddress) return c.error({ message: "No user address found" });
-  const amount = parseUnits("1", 6);
-  let paymentOptions = await listPaymentOptions(GLIDE_CONFIG, {
-    chainId: vault.chainId,
-    account: userAddress,
-    abi: vaultABI,
-    address: vault.address,
-    args: [amount, userAddress],
-    functionName: "deposit",
-  });
 
-  paymentOptions = paymentOptions.slice(0, 4) as PaymentOption[];
-  const statePaymentOptions = convertArrayToObject(paymentOptions);
-  deriveState((state) => {
-    state.paymentOptions = statePaymentOptions;
-  });
+  const userAddress = previousState.userAddress;
+  // if (!userAddress) return c.error({ message: "No user address found" });
+  const amount = parseUnits("1", 6);
+  if (!paymentOptions || paymentOptionsOrder.length === 0) {
+    let glidePaymentOptions = await listPaymentOptions(GLIDE_CONFIG, {
+      chainId: vault.chainId,
+      abi: vaultABI,
+      address: vault.address,
+      args: [amount, userAddress],
+      functionName: "deposit",
+    });
+    paymentOptionsOrder = glidePaymentOptions.map(
+      (option) => option.paymentCurrency
+    );
+
+    paymentOptions = convertArrayToObject(glidePaymentOptions);
+    deriveState((state) => {
+      state.paymentOptions = paymentOptions;
+      state.paymentOptionsOrder = paymentOptionsOrder;
+    });
+  }
+
+  const possibleNumberOfPages = Math.ceil(paymentOptionsOrder.length / 3);
+
+  if (nextPage > possibleNumberOfPages) nextPage = 1;
+
+  const displayedPaymentOptions = paginate(
+    paymentOptionsOrder,
+    Number(page),
+    3
+  );
+
   //Save payment options to state
 
-  if (paymentOptions.length === 0) {
+  if (displayedPaymentOptions.length === 0) {
     return c.res({
       image: (
         <div tw="bg-amber-700 items-center flex flex-col justify-center text-center w-full h-full px-4">
@@ -93,7 +118,7 @@ app.frame("/vaults", async (c) => {
       ),
       intents: [
         <Button action="/">Back</Button>,
-        <Button action="/vaults">Purchase</Button>,
+        <Button action="/vaults/1">Purchase</Button>,
       ],
     });
   }
@@ -106,11 +131,12 @@ app.frame("/vaults", async (c) => {
     action: "/payment",
     intents: [
       <TextInput placeholder="Enter the amount" />,
-      ...paymentOptions.map((option) => (
-        <Button value={`${option.paymentCurrency}`}>
-          {option.currencySymbol}
+      ...displayedPaymentOptions.map((option) => (
+        <Button value={`${option}`}>
+          {paymentOptions[option].currencySymbol}
         </Button>
       )),
+      <Button action={`/vaults/${nextPage}`}> Next Page </Button>,
     ],
   });
 });
@@ -142,7 +168,6 @@ app.frame("/payment", async (c) => {
     //Actual payment amount that is used by glide
     paymentAmount: Number(amount),
     chainId: vault.chainId,
-    account: userAddress,
     abi: vaultABI,
     address: vault.address,
     args: [dummyDepositAmount, userAddress],
@@ -287,6 +312,12 @@ function convertArrayToObject(arr: PaymentOption[]) {
     };
     return acc;
   }, {}) as { [key: string]: { balance: number; currencySymbol: string } };
+}
+
+function paginate<T>(array: T[], page: number, itemsPerPage: number): T[] {
+  const start = (page - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return array.slice(start, end);
 }
 
 // @ts-ignore
