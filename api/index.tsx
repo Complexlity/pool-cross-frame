@@ -1,4 +1,3 @@
-import fs from "fs";
 import { vaultABI } from "@generationsoftware/hyperstructure-client-js";
 import { Button, Frog, TextInput } from "frog";
 import { devtools } from "frog/dev";
@@ -17,7 +16,6 @@ import { hexToBigInt, parseUnits } from "viem";
 import { Address } from "viem/accounts";
 import { vaultList } from "../utils/config.js";
 import { GLIDE_CONFIG } from "../utils/services.js";
-import dummyPaymentJson from "./paymentOptions.json";
 
 type State = {
   vault: (typeof vaultList)[number];
@@ -31,7 +29,8 @@ export const app = new Frog<{ State: State }>({
   assetsPath: "/",
   basePath: "/api",
   initialState: {
-    userAddress: "0x5C0A0D794558eaA0029C01E8b5B4Eac2425c9Ad3",
+    userAddress: null,
+
     vault: vaultList[0],
     paymentOptions: null,
     paymentOptionsOrder: [],
@@ -50,15 +49,15 @@ app.frame("/", (c) => {
     ),
     action: "/vaults/1",
     intents: [
-      <Button value={"0"}>przUSDC OP</Button>,
-      <Button value={"1"}>przUSDC BASE</Button>,
-      <Button value={"2"}>przUSDC ARB</Button>,
+      ...vaultList.map((vault, index) => (
+        <Button value={`${index}`}>{vault.name}</Button>
+      )),
     ],
   });
 });
 
 app.frame("/vaults/:page", async (c) => {
-  const { buttonIndex, deriveState, previousState, buttonValue } = c;
+  const { deriveState, previousState, buttonValue } = c;
   const value = Number(buttonValue);
 
   let paymentOptions = previousState.paymentOptions;
@@ -68,14 +67,16 @@ app.frame("/vaults/:page", async (c) => {
   let nextPage = page + 1;
   let vault = previousState.vault;
   if (value && !isNaN(value)) {
+    console.log(value);
     vault = vaultList[value];
+    console.log(vault);
     deriveState((state) => {
       state.vault = vault;
     });
   }
 
   const userAddress = previousState.userAddress;
-  // if (!userAddress) return c.error({ message: "No user address found" });
+  if (!userAddress) return c.error({ message: "No user address found" });
   const amount = parseUnits("1", 6);
   if (!paymentOptions || paymentOptionsOrder.length === 0) {
     let glidePaymentOptions = await listPaymentOptions(GLIDE_CONFIG, {
@@ -96,14 +97,17 @@ app.frame("/vaults/:page", async (c) => {
     });
   }
 
-  const possibleNumberOfPages = Math.ceil(paymentOptionsOrder.length / 3);
+  const TOKENS_PER_PAGE = 2;
+  const possibleNumberOfPages = Math.ceil(
+    paymentOptionsOrder.length / TOKENS_PER_PAGE
+  );
 
   if (nextPage > possibleNumberOfPages) nextPage = 1;
 
   const displayedPaymentOptions = paginate(
     paymentOptionsOrder,
     Number(page),
-    3
+    TOKENS_PER_PAGE
   );
 
   //Save payment options to state
@@ -117,7 +121,7 @@ app.frame("/vaults/:page", async (c) => {
         </div>
       ),
       intents: [
-        <Button action="/">Back</Button>,
+        <Button action="/">Home 🏡</Button>,
         <Button action="/vaults/1">Purchase</Button>,
       ],
     });
@@ -131,6 +135,7 @@ app.frame("/vaults/:page", async (c) => {
     action: "/payment",
     intents: [
       <TextInput placeholder="Enter the amount" />,
+      <Button action="/">Home 🏡</Button>,
       ...displayedPaymentOptions.map((option) => (
         <Button value={`${option}`}>
           {paymentOptions[option].currencySymbol}
@@ -154,16 +159,10 @@ app.frame("/payment", async (c) => {
   if (!paymentCurrency)
     return c.error({ message: "No payment currency found" });
   if (!paymentOptions) return c.error({ message: "No payment options found" });
-
-  const paymentOption = paymentOptions[paymentCurrency];
-  if (!amount) amount = 10;
-  //Default the amount to half the user's balance
-  if (amount > paymentOption.balance) amount = paymentOption.balance / 2;
   const dummyDepositAmount = parseUnits(`${amount}`, 6);
   if (!vault) {
     return c.error({ message: "Invalid payment currency" });
   }
-
   const parameters = {
     //Actual payment amount that is used by glide
     paymentAmount: Number(amount),
@@ -185,7 +184,7 @@ app.frame("/payment", async (c) => {
     ),
     action: `/final/${session.sessionId}`,
     intents: [
-      <Button action="/vaults">Back</Button>,
+      <Button action="/vaults/1">Back</Button>,
       <Button.Transaction target={`/send-tx/${session.sessionId}`}>
         Confirm Session
       </Button.Transaction>,
@@ -258,19 +257,13 @@ app.frame("/final/:sessionId/", async (c) => {
       });
     }
   } catch (e) {
-    console.error("Error:", e);
-
     return c.res({
       image: (
         <div tw="bg-amber-700 items-center flex flex-col justify-center text-center w-full h-full px-4">
-          <p>Processing...</p>
+          <p>Something may have gone wrong. Please try again.</p>
         </div>
       ),
-      intents: [
-        <Button value={txHash} action={`/final/${sessionId}`}>
-          Refresh
-        </Button>,
-      ],
+      intents: [<Button action="/">Home 🏡</Button>],
     });
   }
 });
@@ -293,11 +286,11 @@ app.transaction("/send-tx/:sessionId", async (c) => {
 function getExplorerLink(chainId: (typeof vaultList)[number]["chainId"]) {
   switch (chainId) {
     case 10:
-      return "https://optimistic.etherscan.io/tx/";
+      return "https://optimistic.etherscan.io/tx";
     case 8453:
-      return "https://basescan.org/tx/";
+      return "https://basescan.org/tx";
     case 42161:
-      return "https://arbiscan.io/tx/";
+      return "https://arbiscan.io/tx";
     default:
       throw new Error("Invalid chain id");
   }
