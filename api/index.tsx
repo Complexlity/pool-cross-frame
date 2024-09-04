@@ -17,6 +17,7 @@ import { hexToBigInt, parseUnits } from "viem";
 import { Address } from "viem/accounts";
 import { vaultList } from "../utils/config.js";
 import { GLIDE_CONFIG, sdkInstance } from "../utils/services.js";
+import { Box, Icon, Spacer, Text } from "../utils/ui.js";
 
 type State = {
   vault: (typeof vaultList)[number];
@@ -28,7 +29,7 @@ export const app = new Frog<{ State: State }>({
   assetsPath: "/",
   basePath: "/api",
   initialState: {
-    userAddress: null,
+    userAddress: "0x5C0A0D794558eaA0029C01E8b5B4Eac2425c9Ad3" as Address,
 
     vault: vaultList[0],
     paymentOptions: [],
@@ -38,8 +39,21 @@ export const app = new Frog<{ State: State }>({
 });
 
 app.frame("/", (c) => {
+  const dummySuccessImageProps = {
+    inputName: "USDC",
+    vaultName: "przUSDC on ARB",
+    amountIn: "1.956",
+    amountOut: "1.944",
+  };
   return c.res({
     image: "https://i.imgur.com/lAyOQ9v.png",
+    // image: <ProcessingImage />,
+    // image: "https://i.ibb.co/vhf4bsX/processing.gif",
+    // image: "https://i.ibb.co/d61c0fP/processing.gif",
+    // image: "https://i.ibb.co/N6vZRYC/processing.gif",
+    // image: "https://i.ibb.co/173F8hR/processing.gif",
+    // image: <ErrorImage />,
+    // image: <SuccessImage {...dummySuccessImageProps} />,
     action: "/vaults/1",
     intents: [
       ...vaultList.map((vault, index) => (
@@ -53,7 +67,7 @@ app.frame("/vaults/:page", async (c) => {
   const { deriveState, previousState, buttonValue } = c;
   const value = Number(buttonValue);
   const { frameData } = c;
-
+  let userAddress = previousState.userAddress;
   if (!frameData) return c.error({ message: "No frame data found" });
 
   let paymentOptions = previousState.paymentOptions;
@@ -80,7 +94,9 @@ app.frame("/vaults/:page", async (c) => {
     return c.error({ message: "Failed to get user" });
   }
 
-  const userAddress = user[0].ethAddresses[0];
+  if (!userAddress) {
+    userAddress = user[0].ethAddresses[0] as Address;
+  }
 
   if (!userAddress) return c.error({ message: "No user address found" });
 
@@ -170,7 +186,7 @@ app.frame("/payment", async (c) => {
   const { buttonValue, inputText, previousState, frameData } = c;
   if (!frameData) return c.error({ message: "No frame data found" });
   const paymentCurrency = buttonValue as CAIP19 | undefined;
-
+  let userAddress = previousState.userAddress;
   const paymentOptions = previousState.paymentOptions;
   const vault = previousState.vault;
   let amount = Number(inputText);
@@ -183,7 +199,9 @@ app.frame("/payment", async (c) => {
     return c.error({ message: "Failed to get user" });
   }
 
-  const userAddress = user[0].ethAddresses[0] as Address;
+  if (!userAddress) {
+    userAddress = user[0].ethAddresses[0] as Address;
+  }
   if (!userAddress) return c.error({ message: "No user address found" });
 
   if (!paymentCurrency)
@@ -283,10 +301,19 @@ app.frame("/final/:sessionId/", async (c) => {
 
     // If the session has a sponsoredTransactionHash, it means the transaction is complete
     if (session.sponsoredTransactionHash) {
-      return c.res({
-        image: (
-          <div tw="bg-green-500 items-center flex flex-col justify-center text-center w-full h-full px-4"></div>
+      const successImageProps = {
+        inputName: session.paymentCurrencySymbol,
+        vaultName: vault.name,
+        amountIn: getRoundedDownFormattedTokenAmount(
+          Number(session.sponsoredTransactionAmount)
         ),
+        amountOut: getRoundedDownFormattedTokenAmount(
+          Number(session.paymentAmount)
+        ),
+      };
+
+      return c.res({
+        image: <SuccessImage {...successImageProps} />,
         intents: [
           <Button.Link
             href={`${explorerUrl}/${session.sponsoredTransactionHash}`}
@@ -298,11 +325,7 @@ app.frame("/final/:sessionId/", async (c) => {
     } else {
       // If the session does not have a sponsoredTransactionHash, the payment is still pending
       return c.res({
-        image: (
-          <div tw="bg-amber-700 items-center flex flex-col justify-center text-center w-full h-full px-4">
-            <p>Processing...</p>
-          </div>
-        ),
+        image: "https://i.ibb.co/173F8hR/processing.gif",
         intents: [
           <Button value={txHash} action={`/final/${sessionId}`}>
             Refresh
@@ -312,11 +335,7 @@ app.frame("/final/:sessionId/", async (c) => {
     }
   } catch (e) {
     return c.res({
-      image: (
-        <div tw="bg-amber-700 items-center flex flex-col justify-center text-center w-full h-full px-4">
-          <p>Something may have gone wrong. Please try again.</p>
-        </div>
-      ),
+      image: <ErrorImage />,
       intents: [<Button action="/">Home 🏡</Button>],
     });
   }
@@ -521,6 +540,75 @@ function ConfirmImage({
             height={50}
           />
           <span>Arbitrum</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ErrorImage() {
+  return (
+    <div tw="w-full flex flex-col h-full items-center justify-center bg-[#2d0a6a] rounded-lg p-8 shadow-lg">
+      <div tw="flex flex-col items-center mb-6 text-red-500">
+        <img
+          src="https://i.ibb.co/rpnZ9gC/error-Icon.png"
+          width="120"
+          height="120"
+        />
+
+        <p tw="flex flex-col text-[#c8adff] text-8xl font-bold text-center mb-4">
+          Transaction Failed
+        </p>
+      </div>
+
+      <div tw="bg-[#3b1485] flex flex-col rounded-lg w-full items-center text-5xl">
+        <p tw="text-[#c8adff]  text-center">
+          We're sorry, but your transaction could not be completed at this time.
+        </p>
+      </div>
+    </div>
+  );
+}
+type SuccessImageProps = {
+  inputName: string;
+  vaultName: string;
+  amountIn: string;
+  amountOut: string;
+};
+
+function SuccessImage({
+  inputName,
+  vaultName,
+  amountIn,
+  amountOut,
+}: SuccessImageProps) {
+  console.log({ inputName, vaultName, amountIn, amountOut });
+  return (
+    <div tw="w-full flex flex-col h-full items-center justify-center bg-[#2d0a6a] rounded-lg p-8 shadow-lg">
+      <div tw="flex flex-col items-center mb-6">
+        <img
+          src="https://i.ibb.co/1mTm3WQ/success-Icon.png"
+          width="120"
+          height="120"
+        />
+
+        <p tw="flex flex-col text-[#c8adff] text-8xl font-bold text-center mb-4">
+          Transaction Success
+        </p>
+      </div>
+
+      <div tw="bg-[#3b1485] flex flex-col flex-wrap justify-center rounded-lg w-full items-center text-[2.8rem] py-6 text-center">
+        <span tw="text-[#c8adff] w-full text-center py-2 flex items-center  mx-auto justify-center">
+          You sucessfully purchased{" "}
+          <span tw="text-[#03dd4d] mx-4">
+            {amountIn} {vaultName}
+          </span>
+        </span>
+        <span tw="text-[#c8adff]  text-center py-2 flex items-center">
+          for{" "}
+          <span tw="mx-4 text-[#03dd4d]">
+            {amountOut} {inputName}{" "}
+          </span>
         </span>
       </div>
     </div>
