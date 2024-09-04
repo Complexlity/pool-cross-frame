@@ -2,7 +2,6 @@ import { vaultABI } from "@generationsoftware/hyperstructure-client-js";
 import { Button, Frog, TextInput } from "frog";
 import { devtools } from "frog/dev";
 import { serveStatic } from "frog/serve-static";
-import fs from "fs";
 // import { neynar } from 'frog/hubs'
 import {
   CAIP19,
@@ -17,7 +16,6 @@ import { hexToBigInt, parseUnits } from "viem";
 import { Address } from "viem/accounts";
 import { vaultList } from "../utils/config.js";
 import { GLIDE_CONFIG, sdkInstance } from "../utils/services.js";
-import { Box, Icon, Spacer, Text } from "../utils/ui.js";
 
 type State = {
   vault: (typeof vaultList)[number];
@@ -39,21 +37,9 @@ export const app = new Frog<{ State: State }>({
 });
 
 app.frame("/", (c) => {
-  const dummySuccessImageProps = {
-    inputName: "USDC",
-    vaultName: "przUSDC on ARB",
-    amountIn: "1.956",
-    amountOut: "1.944",
-  };
+  
   return c.res({
     image: "https://i.imgur.com/lAyOQ9v.png",
-    // image: <ProcessingImage />,
-    // image: "https://i.ibb.co/vhf4bsX/processing.gif",
-    // image: "https://i.ibb.co/d61c0fP/processing.gif",
-    // image: "https://i.ibb.co/N6vZRYC/processing.gif",
-    // image: "https://i.ibb.co/173F8hR/processing.gif",
-    // image: <ErrorImage />,
-    // image: <SuccessImage {...dummySuccessImageProps} />,
     action: "/vaults/1",
     intents: [
       ...vaultList.map((vault, index) => (
@@ -139,8 +125,6 @@ app.frame("/vaults/:page", async (c) => {
     TOKENS_PER_PAGE
   );
 
-  //Save payment options to state
-
   if (displayedPaymentOptions.length === 0) {
     return c.res({
       image: (
@@ -181,7 +165,6 @@ app.frame("/vaults/:page", async (c) => {
   });
 });
 
-// app.frame("/final", async (c) => {
 app.frame("/payment", async (c) => {
   const { buttonValue, inputText, previousState, frameData } = c;
   if (!frameData) return c.error({ message: "No frame data found" });
@@ -223,15 +206,7 @@ app.frame("/payment", async (c) => {
   };
 
   const session = await createSession(GLIDE_CONFIG, parameters);
-  fs.writeFileSync(
-    "session.json",
-    JSON.stringify(session, (key, value) => {
-      if (typeof value === "bigint") {
-        return value.toString();
-      }
-      return value;
-    })
-  );
+  
   const confirmImageProps = {
     inputLogo: session.paymentCurrencyLogoUrl,
     inputName: session.paymentCurrencySymbol,
@@ -367,20 +342,6 @@ function getExplorerLink(chainId: (typeof vaultList)[number]["chainId"]) {
     default:
       throw new Error("Invalid chain id");
   }
-}
-
-function convertArrayToObject(arr: PaymentOption[]) {
-  return arr.reduce((acc, item) => {
-    //@ts-expect-error
-    acc[item.paymentCurrency] = {
-      balance: Number(item.balance),
-      symbol: item.currencySymbol,
-      logo: item.currencyLogoUrl,
-    };
-    return acc;
-  }, {}) as {
-    [key: string]: { balance: number; logo: string; symbol: string };
-  };
 }
 
 function paginate<T>(array: T[], page: number, itemsPerPage: number): T[] {
