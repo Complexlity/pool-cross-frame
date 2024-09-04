@@ -2,6 +2,7 @@ import { vaultABI } from "@generationsoftware/hyperstructure-client-js";
 import { Button, Frog, TextInput } from "frog";
 import { devtools } from "frog/dev";
 import { serveStatic } from "frog/serve-static";
+import fs from "fs";
 // import { neynar } from 'frog/hubs'
 import {
   CAIP19,
@@ -15,15 +16,13 @@ import { handle } from "frog/vercel";
 import { hexToBigInt, parseUnits } from "viem";
 import { Address } from "viem/accounts";
 import { vaultList } from "../utils/config.js";
-import { GLIDE_CONFIG } from "../utils/services.js";
+import { GLIDE_CONFIG, sdkInstance } from "../utils/services.js";
 
 type State = {
   vault: (typeof vaultList)[number];
   userAddress: Address | null;
-  paymentOptions: {
-    [key: string]: { balance: number; currencySymbol: string };
-  } | null;
-  paymentOptionsOrder: string[];
+  paymentOptions: { symbol: string; logo: string; paymentCurrency: CAIP19 }[];
+  paymentOptionsOrder: CAIP19[];
 };
 export const app = new Frog<{ State: State }>({
   assetsPath: "/",
@@ -32,7 +31,7 @@ export const app = new Frog<{ State: State }>({
     userAddress: null,
 
     vault: vaultList[0],
-    paymentOptions: null,
+    paymentOptions: [],
     paymentOptionsOrder: [],
   },
   title: "Frog Frame",
@@ -40,13 +39,7 @@ export const app = new Frog<{ State: State }>({
 
 app.frame("/", (c) => {
   return c.res({
-    image: (
-      <div tw="bg-purple-500 items-center flex flex-col justify-center text-center w-full h-full px-4">
-        <p tw="text-white text-8xl">
-          Deposit into pool together protocol with arbitrum tokens
-        </p>
-      </div>
-    ),
+    image: "https://i.imgur.com/lAyOQ9v.png",
     action: "/vaults/1",
     intents: [
       ...vaultList.map((vault, index) => (
@@ -59,6 +52,9 @@ app.frame("/", (c) => {
 app.frame("/vaults/:page", async (c) => {
   const { deriveState, previousState, buttonValue } = c;
   const value = Number(buttonValue);
+  const { frameData } = c;
+
+  if (!frameData) return c.error({ message: "No frame data found" });
 
   let paymentOptions = previousState.paymentOptions;
   let paymentOptionsOrder = previousState.paymentOptionsOrder;
@@ -75,8 +71,19 @@ app.frame("/vaults/:page", async (c) => {
     });
   }
 
-  const userAddress = previousState.userAddress;
+  const { data: user, error: userError } = await sdkInstance.getUsersByFid([
+    frameData.fid,
+  ]);
+
+  if (userError) {
+    console.log(userError);
+    return c.error({ message: "Failed to get user" });
+  }
+
+  const userAddress = user[0].ethAddresses[0];
+
   if (!userAddress) return c.error({ message: "No user address found" });
+
   const amount = parseUnits("1", 6);
   if (!paymentOptions || paymentOptionsOrder.length === 0) {
     let glidePaymentOptions = await listPaymentOptions(GLIDE_CONFIG, {
@@ -86,11 +93,17 @@ app.frame("/vaults/:page", async (c) => {
       args: [amount, userAddress],
       functionName: "deposit",
     });
-    paymentOptionsOrder = glidePaymentOptions.map(
+
+    paymentOptions = glidePaymentOptions.map((option) => ({
+      symbol: option.currencySymbol,
+      logo: option.currencyLogoUrl,
+      paymentCurrency: option.paymentCurrency,
+    }));
+
+    paymentOptionsOrder = paymentOptions.map(
       (option) => option.paymentCurrency
     );
 
-    paymentOptions = convertArrayToObject(glidePaymentOptions);
     deriveState((state) => {
       state.paymentOptions = paymentOptions;
       state.paymentOptionsOrder = paymentOptionsOrder;
@@ -128,17 +141,23 @@ app.frame("/vaults/:page", async (c) => {
   }
   return c.res({
     image: (
-      <div tw="bg-green-700 items-center flex flex-col justify-center text-center w-full h-full px-4">
-        Depositing into prz
-      </div>
+      <DepositingImage
+        defaultTokens={paymentOptions}
+        currentTokens={displayedPaymentOptions}
+        vaultTitle={vault.title}
+      />
     ),
     action: "/payment",
     intents: [
       <TextInput placeholder="Enter the amount" />,
       <Button action="/">Home 🏡</Button>,
-      ...displayedPaymentOptions.map((option) => (
-        <Button value={`${option}`}>
-          {paymentOptions[option].currencySymbol}
+      ...displayedPaymentOptions.map((displayedOption) => (
+        <Button value={`${displayedOption}`}>
+          {
+            paymentOptions.find(
+              (option) => option.paymentCurrency === displayedOption
+            )!.symbol
+          }
         </Button>
       )),
       <Button action={`/vaults/${nextPage}`}> Next Page </Button>,
@@ -148,12 +167,23 @@ app.frame("/vaults/:page", async (c) => {
 
 // app.frame("/final", async (c) => {
 app.frame("/payment", async (c) => {
-  const { buttonValue, inputText, previousState } = c;
+  const { buttonValue, inputText, previousState, frameData } = c;
+  if (!frameData) return c.error({ message: "No frame data found" });
   const paymentCurrency = buttonValue as CAIP19 | undefined;
+
   const paymentOptions = previousState.paymentOptions;
   const vault = previousState.vault;
   let amount = Number(inputText);
-  const userAddress = previousState.userAddress;
+  const { data: user, error: userError } = await sdkInstance.getUsersByFid([
+    frameData.fid,
+  ]);
+
+  if (userError) {
+    console.log(userError);
+    return c.error({ message: "Failed to get user" });
+  }
+
+  const userAddress = user[0].ethAddresses[0] as Address;
   if (!userAddress) return c.error({ message: "No user address found" });
 
   if (!paymentCurrency)
@@ -175,13 +205,37 @@ app.frame("/payment", async (c) => {
   };
 
   const session = await createSession(GLIDE_CONFIG, parameters);
+  fs.writeFileSync(
+    "session.json",
+    JSON.stringify(session, (key, value) => {
+      if (typeof value === "bigint") {
+        return value.toString();
+      }
+      return value;
+    })
+  );
+  const confirmImageProps = {
+    inputLogo: session.paymentCurrencyLogoUrl,
+    inputName: session.paymentCurrencySymbol,
+    vaultLogo: vault.logo,
+    vaultName: vault.title,
+    amountIn: getRoundedDownFormattedTokenAmount(
+      Number(session.sponsoredTransactionAmount)
+    ),
+    amountInUsd: getRoundedDownFormattedTokenAmount(
+      Number(session.sponsoredTransactionAmountUSD)
+    ),
+    amountOut: getRoundedDownFormattedTokenAmount(
+      Number(session.paymentAmount)
+    ),
+    amountOutUsd: getRoundedDownFormattedTokenAmount(
+      Number(session.paymentAmountUSD)
+    ),
+    address: userAddress,
+  };
 
   return c.res({
-    image: (
-      <div tw="bg-green-700 items-center flex flex-col justify-center text-center w-full h-full px-4">
-        Paying with {paymentCurrency}
-      </div>
-    ),
+    image: <ConfirmImage {...confirmImageProps} />,
     action: `/final/${session.sessionId}`,
     intents: [
       <Button action="/vaults/1">Back</Button>,
@@ -301,10 +355,13 @@ function convertArrayToObject(arr: PaymentOption[]) {
     //@ts-expect-error
     acc[item.paymentCurrency] = {
       balance: Number(item.balance),
-      currencySymbol: item.currencySymbol,
+      symbol: item.currencySymbol,
+      logo: item.currencyLogoUrl,
     };
     return acc;
-  }, {}) as { [key: string]: { balance: number; currencySymbol: string } };
+  }, {}) as {
+    [key: string]: { balance: number; logo: string; symbol: string };
+  };
 }
 
 function paginate<T>(array: T[], page: number, itemsPerPage: number): T[] {
@@ -312,6 +369,263 @@ function paginate<T>(array: T[], page: number, itemsPerPage: number): T[] {
   const end = start + itemsPerPage;
   return array.slice(start, end);
 }
+
+function DepositingImage({
+  defaultTokens,
+  currentTokens,
+  vaultTitle,
+}: {
+  defaultTokens: State["paymentOptions"];
+  currentTokens: State["paymentOptionsOrder"];
+  vaultTitle: string;
+}) {
+  if (!defaultTokens) return null;
+  console.log({ vaultTitle });
+  // const allTokens = getSortedPaymentOptions(defaultTokens, currentTokens);
+
+  return (
+    <div tw="absolute inset-0 flex flex-col items-center justify-center bg-[#21064e]  bg-opacity-60 text-white p-6">
+      <p tw="text-6xl font-bold w-full flex justify-center text-center mb-12 text-white">
+        Depositing into {vaultTitle}
+      </p>
+      <div
+        tw="flex flex-wrap justify-center w-full px-20"
+        style={{ gap: "2rem", flexWrap: "wrap" }}
+      >
+        {defaultTokens.map((token) => (
+          <div
+            tw={`flex items-center px-16 py-4 rounded-lg text-5xl
+              ${
+                currentTokens.includes(token.paymentCurrency)
+                  ? "bg-[#03dd4d] text-[#21064e]"
+                  : "bg-[#c8adff] text-[#21064e]"
+              }
+              `}
+            style={{
+              gap: "1rem",
+            }}
+          >
+            <img tw="w-12 h-12" src={token.logo} />
+            <span tw="font-semibold">{token.symbol}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type ConfirmImageProps = {
+  inputLogo: string;
+  inputName: string;
+  vaultLogo: string;
+  vaultName: string;
+  amountIn: string;
+  amountInUsd: string;
+  amountOut: string;
+  amountOutUsd: string;
+  address: Address;
+};
+
+function ConfirmImage({
+  inputLogo,
+  inputName,
+  vaultLogo,
+  vaultName,
+  amountIn,
+  amountInUsd,
+  amountOut,
+  amountOutUsd,
+  address,
+}: ConfirmImageProps) {
+  return (
+    <div
+      style={{
+        height: "100%",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        fontSize: 32,
+        fontWeight: 600,
+        padding: "10px 50px",
+      }}
+      tw="bg-slate-900 text-white"
+    >
+      <span tw="text-5xl my-2 text-center flex justify-center">
+        Preview Transaction{" "}
+      </span>
+      <div
+        tw="flex items-center  mx-auto justify-between max-w-4/5 w-full flex-col"
+        style={{
+          gap: "10px",
+        }}
+      >
+        <div tw="flex justify-between py-1  w-full">
+          <span tw="text-center text-gray-500 flex">From</span>
+          <span tw="text-center text-gray-500">To</span>
+        </div>
+        <div tw="flex justify-between py-1 w-full">
+          <div tw="rounded-full flex w-[100px] h-[100px] overflow-hidden ">
+            <img
+              src={inputLogo}
+              width={"100%"}
+              height={"100%"}
+              style={{
+                objectFit: "cover",
+              }}
+            />
+          </div>
+          {/* svg arrow was here */}
+          <div tw="rounded-full flex w-[100px] h-[100px] overflow-hidden ">
+            <img
+              src={vaultLogo}
+              width={"100%"}
+              height={"100%"}
+              style={{
+                objectFit: "cover",
+              }}
+            />
+          </div>
+        </div>
+        <div tw="flex w-full justify-between">
+          <span>{inputName}</span>
+          <span>{vaultName}</span>
+        </div>
+      </div>
+      <hr tw="py-[1px] w-full bg-gray-800" />
+      <div tw="flex justify-between py-2">
+        <div tw="text-gray-400">Purchase Amount</div>
+        <div tw="flex text-4xl items-center" style={{ gap: "4px" }}>
+          <span>{amountOut + " "}</span>
+          <span>( ${amountOutUsd} )</span>
+        </div>
+      </div>
+      <div tw="flex justify-between py-2">
+        <span tw="text-gray-400">Receiving Amount</span>
+        <span tw="text-4xl flex" style={{ gap: "10px" }}>
+          <span>{amountIn + " "}</span>
+          <span> ( ${amountInUsd} )</span>
+        </span>
+      </div>
+      <div tw="flex justify-between py-2 items-center">
+        <span tw="text-gray-400">Receiving Address</span>
+        <span style={{ gap: "4px" }} tw="flex items-center">
+          <span>{address}</span>
+        </span>
+      </div>
+      <div tw="flex justify-between py-2 items-center">
+        <span tw="text-gray-400">Chain</span>
+        <span style={{ gap: "4px" }} tw="flex items-center">
+          <img
+            src="https://i.postimg.cc/L6CsRBQ4/arbitrum.png"
+            width={50}
+            height={50}
+          />
+          <span>Arbitrum</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export const getRoundedDownFormattedTokenAmount = (amount: number) => {
+  const shiftedAmount = amount.toString();
+
+  const fractionDigits = shiftedAmount.split(".")[1] ?? "";
+  const numFractionLeadingZeroes = (fractionDigits.match(/^0+/) || [""])[0]
+    .length;
+  const maximumFractionDigits = Math.max(
+    Math.min(numFractionLeadingZeroes + 1, 4),
+    3
+  );
+
+  const roundingMultiplier = 10 ** maximumFractionDigits;
+  const roundedAmount =
+    Math.floor(parseFloat(shiftedAmount) * roundingMultiplier) /
+    roundingMultiplier;
+
+  return formatNumberForDisplay(roundedAmount, { maximumFractionDigits });
+};
+
+export const formatNumberForDisplay = (
+  val: string | number | bigint,
+  options: Intl.NumberFormatOptions & {
+    locale?: string;
+    round?: boolean;
+    hideZeroes?: boolean;
+    shortenMillions?: boolean;
+  } = { locale: "en" }
+) => {
+  const { locale, round, hideZeroes, shortenMillions, ...formatOptions } =
+    options;
+
+  const format = (
+    v: number,
+    overrides?: {
+      minimumFractionDigits?: number;
+      maximumFractionDigits?: number;
+    }
+  ) => {
+    return v.toLocaleString(locale || "en", {
+      ...formatOptions,
+      maximumFractionDigits:
+        !!hideZeroes && overrides?.maximumFractionDigits === undefined
+          ? v <= 1
+            ? formatOptions.maximumFractionDigits
+            : 0
+          : overrides?.maximumFractionDigits ??
+            formatOptions.maximumFractionDigits,
+      minimumFractionDigits:
+        !!hideZeroes && overrides?.minimumFractionDigits === undefined
+          ? v <= 1
+            ? formatOptions.minimumFractionDigits
+            : 0
+          : overrides?.minimumFractionDigits ??
+            formatOptions.minimumFractionDigits,
+    });
+  };
+
+  const formatShortened = (v: number) => {
+    if (v < 1e6) return format(v);
+
+    const numDigits = Math.floor(Math.abs(v)).toString().length;
+    const maximumFractionDigits =
+      numDigits === 7 || numDigits === 10
+        ? 2
+        : numDigits === 8 || numDigits === 11
+        ? 1
+        : 0;
+    const newValue =
+      Math.round(v / 10 ** (numDigits - 3)) / 10 ** maximumFractionDigits;
+    const label = numDigits >= 10 ? "B" : "M";
+
+    return (
+      format(newValue, { minimumFractionDigits: 0, maximumFractionDigits }) +
+      label
+    );
+  };
+
+  let _val: number;
+
+  if (val === undefined || val === null) {
+    return "";
+  } else if (typeof val === "number") {
+    _val = val;
+  } else if (typeof val === "string" || typeof val === "bigint") {
+    _val = Number(val);
+  } else {
+    return "";
+  }
+
+  if (!!round) {
+    _val = Math.round(_val);
+  }
+
+  if (!!shortenMillions) {
+    return formatShortened(_val);
+  }
+
+  return format(_val);
+};
 
 // @ts-ignore
 const isEdgeFunction = typeof EdgeFunction !== "undefined";
