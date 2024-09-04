@@ -2,14 +2,12 @@ import { vaultABI } from "@generationsoftware/hyperstructure-client-js";
 import { Button, Frog, TextInput } from "frog";
 import { devtools } from "frog/dev";
 import { serveStatic } from "frog/serve-static";
-// import { neynar } from 'frog/hubs'
 import {
   CAIP19,
   createSession,
   getSessionById,
   listPaymentOptions,
-  PaymentOption,
-  updatePaymentTransaction,
+  updatePaymentTransaction
 } from "@paywithglide/glide-js";
 import { handle } from "frog/vercel";
 import { hexToBigInt, parseUnits } from "viem";
@@ -160,7 +158,7 @@ app.frame("/vaults/:page", async (c) => {
           }
         </Button>
       )),
-      <Button action={`/vaults/${nextPage}`}> Next Page </Button>,
+      <Button action={`/vaults/${nextPage}`}> Next ⏭️ </Button>,
     ],
   });
 });
@@ -358,14 +356,16 @@ function DepositingImage({
   defaultTokens: State["paymentOptions"];
   currentTokens: State["paymentOptionsOrder"];
   vaultTitle: string;
-}) {
+  }) {
+  
   if (!defaultTokens) return null;
   console.log({ vaultTitle });
+  
   // const allTokens = getSortedPaymentOptions(defaultTokens, currentTokens);
 
   return (
-    <div tw="absolute inset-0 flex flex-col items-center justify-center bg-[#21064e]  bg-opacity-60 text-white p-6">
-      <p tw="text-6xl font-bold w-full flex justify-center text-center mb-12 text-white">
+    <div tw="absolute inset-0 flex flex-col items-center justify-center bg-[#21064e] p-6">
+      <p tw="text-6xl font-bold w-full flex justify-center text-center mb-12 text-[#c8adff]">
         Depositing into {vaultTitle}
       </p>
       <div
@@ -374,7 +374,7 @@ function DepositingImage({
       >
         {defaultTokens.map((token) => (
           <div
-            tw={`flex items-center px-16 py-4 rounded-lg text-5xl
+            tw={`flex items-center px-12 py-4 rounded-full text-5xl
               ${
                 currentTokens.includes(token.paymentCurrency)
                   ? "bg-[#03dd4d] text-[#21064e]"
@@ -390,6 +390,7 @@ function DepositingImage({
           </div>
         ))}
       </div>
+      <span tw="absolute text-white text-4xl bottom-5 flex items-center">Click <span tw="text-[#03dd4d] font-bold mx-4">Next ⏭️</span> to circle through possible tokens</span>
     </div>
   );
 }
@@ -428,9 +429,9 @@ function ConfirmImage({
         fontWeight: 600,
         padding: "10px 50px",
       }}
-      tw="bg-slate-900 text-white"
+      tw="bg-[#21064e] text-white"
     >
-      <span tw="text-5xl my-2 text-center flex justify-center">
+      <span tw="text-5xl my-2 text-center flex justify-center text-[#c8adff] ">
         Preview Transaction{" "}
       </span>
       <div
@@ -440,8 +441,8 @@ function ConfirmImage({
         }}
       >
         <div tw="flex justify-between py-1  w-full">
-          <span tw="text-center text-gray-500 flex">From</span>
-          <span tw="text-center text-gray-500">To</span>
+          <span tw="text-center text-gray-500 flex text-white">From</span>
+          <span tw="text-center text-gray-500 text-white">To</span>
         </div>
         <div tw="flex justify-between py-1 w-full">
           <div tw="rounded-full flex w-[100px] h-[100px] overflow-hidden ">
@@ -473,27 +474,27 @@ function ConfirmImage({
       </div>
       <hr tw="py-[1px] w-full bg-gray-800" />
       <div tw="flex justify-between py-2">
-        <div tw="text-gray-400">Purchase Amount</div>
+        <div tw="text-[#c8adff]">Purchase Amount</div>
         <div tw="flex text-4xl items-center" style={{ gap: "4px" }}>
           <span>{amountOut + " "}</span>
-          <span>( ${amountOutUsd} )</span>
+          <span tw="text-white">( ${amountOutUsd} )</span>
         </div>
       </div>
       <div tw="flex justify-between py-2">
-        <span tw="text-gray-400">Receiving Amount</span>
+        <span tw="text-[#c8adff]">Receiving Amount</span>
         <span tw="text-4xl flex" style={{ gap: "10px" }}>
           <span>{amountIn + " "}</span>
-          <span> ( ${amountInUsd} )</span>
+          <span tw="text-white"> ( ${amountInUsd} )</span>
         </span>
       </div>
       <div tw="flex justify-between py-2 items-center">
-        <span tw="text-gray-400">Receiving Address</span>
-        <span style={{ gap: "4px" }} tw="flex items-center">
+        <span tw="text-[#c8adff]">Receiving Address</span>
+        <span style={{ gap: "4px" }} tw="flex items-center text-[#03dd4d] bold">
           <span>{address}</span>
         </span>
       </div>
       <div tw="flex justify-between py-2 items-center">
-        <span tw="text-gray-400">Chain</span>
+        <span tw="text-[#c8adff]">Chain</span>
         <span style={{ gap: "4px" }} tw="flex items-center">
           <img
             src="https://i.postimg.cc/L6CsRBQ4/arbitrum.png"
@@ -543,7 +544,6 @@ function SuccessImage({
   amountIn,
   amountOut,
 }: SuccessImageProps) {
-  console.log({ inputName, vaultName, amountIn, amountOut });
   return (
     <div tw="w-full flex flex-col h-full items-center justify-center bg-[#2d0a6a] rounded-lg p-8 shadow-lg">
       <div tw="flex flex-col items-center mb-6">
@@ -553,7 +553,7 @@ function SuccessImage({
           height="120"
         />
 
-        <p tw="flex flex-col text-[#c8adff] text-8xl font-bold text-center mb-4">
+        <p tw="flex flex-col text-[#c8adff] text-6xl font-bold text-center mb-4">
           Transaction Success
         </p>
       </div>
