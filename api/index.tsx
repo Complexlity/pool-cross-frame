@@ -7,7 +7,7 @@ import {
   createSession,
   getSessionById,
   listPaymentOptions,
-  updatePaymentTransaction
+  updatePaymentTransaction,
 } from "@paywithglide/glide-js";
 import { handle } from "frog/vercel";
 import { hexToBigInt, parseUnits } from "viem";
@@ -25,8 +25,7 @@ export const app = new Frog<{ State: State }>({
   assetsPath: "/",
   basePath: "/api",
   initialState: {
-    userAddress: "0x5C0A0D794558eaA0029C01E8b5B4Eac2425c9Ad3" as Address,
-
+    userAddress: null,
     vault: vaultList[0],
     paymentOptions: [],
     paymentOptionsOrder: [],
@@ -35,7 +34,6 @@ export const app = new Frog<{ State: State }>({
 });
 
 app.frame("/", (c) => {
-  
   return c.res({
     image: "https://i.imgur.com/lAyOQ9v.png",
     action: "/vaults/1",
@@ -204,7 +202,7 @@ app.frame("/payment", async (c) => {
   };
 
   const session = await createSession(GLIDE_CONFIG, parameters);
-  
+
   const confirmImageProps = {
     inputLogo: session.paymentCurrencyLogoUrl,
     inputName: session.paymentCurrencySymbol,
@@ -356,11 +354,10 @@ function DepositingImage({
   defaultTokens: State["paymentOptions"];
   currentTokens: State["paymentOptionsOrder"];
   vaultTitle: string;
-  }) {
-  
+}) {
   if (!defaultTokens) return null;
   console.log({ vaultTitle });
-  
+
   // const allTokens = getSortedPaymentOptions(defaultTokens, currentTokens);
 
   return (
@@ -390,7 +387,10 @@ function DepositingImage({
           </div>
         ))}
       </div>
-      <span tw="absolute text-white text-4xl bottom-5 flex items-center">Click <span tw="text-[#03dd4d] font-bold mx-4">Next ⏭️</span> to circle through possible tokens</span>
+      <span tw="absolute text-white text-4xl bottom-5 flex items-center">
+        Click <span tw="text-[#03dd4d] font-bold mx-4">Next ⏭️</span> to circle
+        through possible tokens
+      </span>
     </div>
   );
 }
