@@ -31,7 +31,7 @@ export const app = new Frog<{ State: State }>({
     paymentOptions: [],
     paymentOptionsOrder: [],
   },
-  title: "Frog Frame",
+  title: "Cross deposit into pool together",
 });
 
 app.frame("/", (c) => {
