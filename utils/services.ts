@@ -13,6 +13,8 @@ const GLIDE_CONFIG: Config<readonly Chain[]> = createGlideConfig({
 });
 
 export const sdkInstance = new uniFarcasterSdk({
+  
+  ...(config.NEYNAR_API_KEY ? { neynarApiKey: config.NEYNAR_API_KEY } : {}),
   debug: process.env.NODE_ENV === "development",
 });
 
