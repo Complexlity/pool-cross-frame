@@ -307,7 +307,7 @@ app.frame("/final/:sessionId/", async (c) => {
   } catch (e) {
     return c.res({
       image: <ErrorImage />,
-      intents: [<Button action="/">Home 🏡</Button>],
+      intents: [<Button action="/">🏡</Button>],
     });
   }
 });
@@ -388,7 +388,7 @@ function DepositingImage({
         ))}
       </div>
       <span tw="absolute text-white text-4xl bottom-5 flex items-center">
-        Click <span tw="text-[#03dd4d] font-bold mx-4">Next ⏭️</span> to circle
+        Click <span tw="text-[#03dd4d] font-bold mx-4">⏭️</span> to circle
         through possible tokens
       </span>
     </div>
