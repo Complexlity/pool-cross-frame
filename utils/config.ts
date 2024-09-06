@@ -8,6 +8,7 @@ dotenv.config();
 const configSchema = z.object({
   GLIDE_PROJECT_ID: z.string(),
   NEYNAR_API_KEY: z.string().optional(),
+  AIRSTACK_API_KEY: z.string().optional(),
 });
 
 export const vaultList = [

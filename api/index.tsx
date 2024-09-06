@@ -1,7 +1,7 @@
 import { vaultABI } from "@generationsoftware/hyperstructure-client-js";
 import { Button, Frog, TextInput } from "frog";
 import { devtools } from "frog/dev";
-import { serveStatic } from "frog/serve-static";
+import { serveStatic } from "frog/serve-static";``
 import {
   CAIP19,
   createSession,
@@ -12,7 +12,7 @@ import {
 import { handle } from "frog/vercel";
 import { hexToBigInt, parseUnits } from "viem";
 import { Address } from "viem/accounts";
-import { vaultList } from "../utils/config.js";
+import { config, vaultList } from "../utils/config.js";
 import { GLIDE_CONFIG, sdkInstance } from "../utils/services.js";
 
 type State = {
@@ -24,6 +24,20 @@ type State = {
 export const app = new Frog<{ State: State }>({
   assetsPath: "/",
   basePath: "/api",
+  ...(config.AIRSTACK_API_KEY
+    ? {
+        hub: {
+          apiUrl: "https://hubs.airstack.xyz",
+          fetchOptions: {
+            headers: {
+              "x-airstack-hubs": config.AIRSTACK_API_KEY,
+              "Cache-Control": "max-age=4",
+            },
+          },
+        },
+      }
+    : {}),
+
   initialState: {
     userAddress: null,
     vault: vaultList[0],
