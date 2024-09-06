@@ -59,9 +59,7 @@ app.frame("/vaults/:page", async (c) => {
   let nextPage = page + 1;
   let vault = previousState.vault;
   if (value && !isNaN(value)) {
-    console.log(value);
     vault = vaultList[value];
-    console.log(vault);
     deriveState((state) => {
       state.vault = vault;
     });
@@ -72,7 +70,6 @@ app.frame("/vaults/:page", async (c) => {
   ]);
 
   if (userError) {
-    console.log(userError);
     return c.error({ message: "Failed to get user" });
   }
 
@@ -130,7 +127,7 @@ app.frame("/vaults/:page", async (c) => {
         </div>
       ),
       intents: [
-        <Button action="/">Home 🏡</Button>,
+        <Button action="/">🏡</Button>,
         <Button action="/vaults/1">Purchase</Button>,
       ],
     });
@@ -146,7 +143,7 @@ app.frame("/vaults/:page", async (c) => {
     action: "/payment",
     intents: [
       <TextInput placeholder="Enter the amount" />,
-      <Button action="/">Home 🏡</Button>,
+      <Button action="/">🏡</Button>,
       ...displayedPaymentOptions.map((displayedOption) => (
         <Button value={`${displayedOption}`}>
           {
@@ -156,7 +153,7 @@ app.frame("/vaults/:page", async (c) => {
           }
         </Button>
       )),
-      <Button action={`/vaults/${nextPage}`}> Next ⏭️ </Button>,
+      <Button action={`/vaults/${nextPage}`}> ⏭️ </Button>,
     ],
   });
 });
@@ -174,7 +171,6 @@ app.frame("/payment", async (c) => {
   ]);
 
   if (userError) {
-    console.log(userError);
     return c.error({ message: "Failed to get user" });
   }
 
@@ -259,7 +255,6 @@ app.frame("/final/:sessionId/", async (c) => {
     });
 
     if (!success) {
-      console.log("failed to update payment transaction");
       return c.error({ message: "failed to update payment transaction" });
     }
 
@@ -356,7 +351,6 @@ function DepositingImage({
   vaultTitle: string;
 }) {
   if (!defaultTokens) return null;
-  console.log({ vaultTitle });
 
   // const allTokens = getSortedPaymentOptions(defaultTokens, currentTokens);
 
