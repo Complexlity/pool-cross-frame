@@ -91,6 +91,9 @@ app.frame("/", (c) => {
       ...vaultList.map((vault, index) => (
         <Button value={`${index}`}>{vault.name}</Button>
       )),
+      <Button.Link href="https://cabana-glide.vercel.app/vaults">
+        App
+      </Button.Link>,
     ],
     headers: {
       "Cache-Control": "max-age=4",
