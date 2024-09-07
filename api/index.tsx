@@ -91,6 +91,9 @@ app.frame("/", (c) => {
         <Button value={`${index}`}>{vault.name}</Button>
       )),
     ],
+    headers: {
+      "Cache-Control": "max-age=4",
+    },
   });
 });
 
