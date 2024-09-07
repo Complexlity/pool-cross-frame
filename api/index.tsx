@@ -1,7 +1,4 @@
 import { vaultABI } from "@generationsoftware/hyperstructure-client-js";
-import { Button, Frog, TextInput } from "frog";
-import { devtools } from "frog/dev";
-import { serveStatic } from "frog/serve-static";``
 import {
   CAIP19,
   createSession,
@@ -9,17 +6,23 @@ import {
   listPaymentOptions,
   updatePaymentTransaction,
 } from "@paywithglide/glide-js";
+import { Button, Frog, TextInput } from "frog";
+import { devtools } from "frog/dev";
+import { serveStatic } from "frog/serve-static";
 import { handle } from "frog/vercel";
 import { hexToBigInt, parseUnits } from "viem";
 import { Address } from "viem/accounts";
+import { arbitrum, base, mainnet, optimism } from "viem/chains";
 import { config, vaultList } from "../utils/config.js";
 import { GLIDE_CONFIG, sdkInstance } from "../utils/services.js";
+``;
 
 type State = {
   vault: (typeof vaultList)[number];
-  userAddress: Address | null;
-  paymentOptions: { symbol: string; logo: string; paymentCurrency: CAIP19 }[];
-  paymentOptionsOrder: CAIP19[];
+  uA: Address | null;
+  pO: { symbol: string; logo: string; pC: CAIP19 }[];
+  pOO: CAIP19[];
+  dC: (typeof supportedChains)[number] | null;
 };
 export const app = new Frog<{ State: State }>({
   assetsPath: "/",
@@ -37,19 +40,51 @@ export const app = new Frog<{ State: State }>({
         },
       }
     : {}),
-
   initialState: {
-    userAddress: null,
+    uA: null,
     vault: vaultList[0],
-    paymentOptions: [],
-    paymentOptionsOrder: [],
+    pO: [],
+    pOO: [],
+    dC: null,
   },
   title: "Cross deposit into pool together",
 });
 
+const supportNetworks = {
+  base: {
+    ...base,
+    // logo: "https://logo.synthfinance.com/base.org",
+    logo: "https://tokenlogo.xyz/assets/chain/base.svg",
+  },
+  arbitrum: {
+    ...arbitrum,
+    // logo: "https://logo.synthfinance.com/arbitrum.io",
+    logo: "https://tokenlogo.xyz/assets/chain/arbitrum.svg",
+  },
+
+  optimism: {
+    ...optimism,
+    logo: "https://tokenlogo.xyz/assets/chain/optimism.svg",
+    // logo: "https://cryptologos.cc/logos/optimism-ethereum-op-logo.png?v=033",
+  },
+  mainnet: {
+    ...mainnet,
+    logo: "https://logo.synthfinance.com/ethereum.org",
+  },
+} as const;
+
+const supportedChains = Object.keys(supportNetworks).map((key) => {
+  return key as keyof typeof supportNetworks;
+});
+
 app.frame("/", (c) => {
+  const { deriveState } = c;
+  //Always reset deposit chain on first page load
+  deriveState((state) => {
+    state.dC = null;
+  });
   return c.res({
-    image: "https://i.imgur.com/lAyOQ9v.png",
+    image: "https://i.ibb.co/ggHZQ8r/start.png",
     action: "/vaults/1",
     intents: [
       ...vaultList.map((vault, index) => (
@@ -61,23 +96,69 @@ app.frame("/", (c) => {
 
 app.frame("/vaults/:page", async (c) => {
   const { deriveState, previousState, buttonValue } = c;
+
   const value = Number(buttonValue);
+  let depositChain = previousState.dC;
   const { frameData } = c;
-  let userAddress = previousState.userAddress;
+  let uA = previousState.uA;
   if (!frameData) return c.error({ message: "No frame data found" });
 
-  let paymentOptions = previousState.paymentOptions;
-  let paymentOptionsOrder = previousState.paymentOptionsOrder;
+  let pO = previousState.pO;
+  let pOO = previousState.pOO;
   let page = Number(c.req.param("page"));
   if (isNaN(page)) page = 1;
-  let nextPage = page + 1;
   let vault = previousState.vault;
-  if (value && !isNaN(value)) {
-    vault = vaultList[value];
-    deriveState((state) => {
-      state.vault = vault;
+
+  if (
+    page === 1 &&
+    buttonValue &&
+    !supportedChains.includes(buttonValue as (typeof supportedChains)[number])
+  ) {
+    if (value && !isNaN(value)) {
+      vault = vaultList[value];
+      deriveState((state) => {
+        state.vault = vault;
+      });
+    }
+
+    return c.res({
+      image: (
+        <div tw="absolute inset-0 flex flex-col items-center justify-center bg-[#21064e] p-6">
+          <p
+            tw="text-7xl font-bold text-center w-full mb-12 text-[#c8adff]"
+            style={{ gap: "1rem" }}
+          >
+            What chain are you depositing from ?
+          </p>
+        </div>
+      ),
+      action: "/vaults/1",
+      intents: [
+        ...supportedChains.map((chain) => (
+          <Button value={`${chain}`}>{`${chain[0].toUpperCase()}${chain.slice(
+            1
+          )}`}</Button>
+        )),
+      ],
     });
   }
+
+  if (
+    buttonValue &&
+    supportedChains.includes(buttonValue as (typeof supportedChains)[number])
+  ) {
+    const state = deriveState((state) => {
+      state.dC = buttonValue as (typeof supportedChains)[number];
+    });
+    depositChain = state.dC;
+  }
+
+  console.log({ dC: depositChain });
+  if (!depositChain) {
+    depositChain = "arbitrum";
+  }
+
+  let nextPage = page + 1;
 
   const { data: user, error: userError } = await sdkInstance.getUsersByFid([
     frameData.fid,
@@ -87,52 +168,66 @@ app.frame("/vaults/:page", async (c) => {
     return c.error({ message: "Failed to get user" });
   }
 
-  if (!userAddress) {
-    userAddress = user[0].ethAddresses[0] as Address;
+  if (!uA) {
+    uA = user[0].ethAddresses[0] as Address;
   }
 
-  if (!userAddress) return c.error({ message: "No user address found" });
+  if (!uA) return c.error({ message: "No user address found" });
 
   const amount = parseUnits("1", 6);
-  if (!paymentOptions || paymentOptionsOrder.length === 0) {
-    let glidePaymentOptions = await listPaymentOptions(GLIDE_CONFIG, {
+  if (!pO || pOO.length === 0) {
+    let glidepO = await listPaymentOptions(GLIDE_CONFIG, {
       chainId: vault.chainId,
       abi: vaultABI,
       address: vault.address,
-      args: [amount, userAddress],
+      args: [amount, uA],
       functionName: "deposit",
+      paymentChainIds: [supportNetworks[depositChain].id],
     });
 
-    paymentOptions = glidePaymentOptions.map((option) => ({
-      symbol: option.currencySymbol,
-      logo: option.currencyLogoUrl,
-      paymentCurrency: option.paymentCurrency,
-    }));
+    pO = glidepO
+      .map((option) => {
+        if (depositChain === "base") {
+          const chosenOptions = [
+            "USDC",
+            "ETH",
+            "HIGHER",
+            "WETH",
+            "MOXIE",
+            "DEGEN",
+            "USDGLO",
+            "TN100X",
+            "AERO",
+          ];
+          if (!chosenOptions.includes(option.currencySymbol)) {
+            return null;
+          }
+        }
+        return {
+          symbol: option.currencySymbol,
+          logo: option.currencyLogoUrl,
+          pC: option.paymentCurrency,
+        };
+      })
+      .filter((x) => x !== null);
+    console.log(pO.length);
 
-    paymentOptionsOrder = paymentOptions.map(
-      (option) => option.paymentCurrency
-    );
+    pOO = pO.map((option) => option.pC);
 
     deriveState((state) => {
-      state.paymentOptions = paymentOptions;
-      state.paymentOptionsOrder = paymentOptionsOrder;
+      state.pO = pO;
+      state.pOO = pOO;
     });
   }
 
   const TOKENS_PER_PAGE = 2;
-  const possibleNumberOfPages = Math.ceil(
-    paymentOptionsOrder.length / TOKENS_PER_PAGE
-  );
+  const possibleNumberOfPages = Math.ceil(pOO.length / TOKENS_PER_PAGE);
 
   if (nextPage > possibleNumberOfPages) nextPage = 1;
 
-  const displayedPaymentOptions = paginate(
-    paymentOptionsOrder,
-    Number(page),
-    TOKENS_PER_PAGE
-  );
+  const displayedpO = paginate(pOO, Number(page), TOKENS_PER_PAGE);
 
-  if (displayedPaymentOptions.length === 0) {
+  if (displayedpO.length === 0) {
     return c.res({
       image: (
         <div tw="bg-amber-700 items-center flex flex-col justify-center text-center w-full h-full px-4">
@@ -141,7 +236,7 @@ app.frame("/vaults/:page", async (c) => {
         </div>
       ),
       intents: [
-        <Button action="/">🏡</Button>,
+        <Button.Reset>🏡</Button.Reset>,
         <Button action="/vaults/1">Purchase</Button>,
       ],
     });
@@ -149,22 +244,19 @@ app.frame("/vaults/:page", async (c) => {
   return c.res({
     image: (
       <DepositingImage
-        defaultTokens={paymentOptions}
-        currentTokens={displayedPaymentOptions}
+        defaultTokens={pO}
+        currentTokens={displayedpO}
         vaultTitle={vault.title}
       />
     ),
     action: "/payment",
     intents: [
-      <TextInput placeholder="Enter the amount" />,
-      <Button action="/">🏡</Button>,
-      ...displayedPaymentOptions.map((displayedOption) => (
+      <TextInput placeholder="Enter the amount. Default: 1" />,
+      <Button.Reset>🏡</Button.Reset>,
+      ...displayedpO.map((displayedOption) => (
         <Button value={`${displayedOption}`}>
-          {
-            paymentOptions.find(
-              (option) => option.paymentCurrency === displayedOption
-            )!.symbol
-          }
+          {pO.find((option) => option.pC === displayedOption)!.symbol +
+            ` (${depositChain}) `}
         </Button>
       )),
       <Button action={`/vaults/${nextPage}`}> ⏭️ </Button>,
@@ -175,11 +267,12 @@ app.frame("/vaults/:page", async (c) => {
 app.frame("/payment", async (c) => {
   const { buttonValue, inputText, previousState, frameData } = c;
   if (!frameData) return c.error({ message: "No frame data found" });
-  const paymentCurrency = buttonValue as CAIP19 | undefined;
-  let userAddress = previousState.userAddress;
-  const paymentOptions = previousState.paymentOptions;
+  const pC = buttonValue as CAIP19 | undefined;
+  let uA = previousState.uA;
+  const pO = previousState.pO;
   const vault = previousState.vault;
   let amount = Number(inputText);
+  if (!amount) amount = 1;
   const { data: user, error: userError } = await sdkInstance.getUsersByFid([
     frameData.fid,
   ]);
@@ -188,30 +281,36 @@ app.frame("/payment", async (c) => {
     return c.error({ message: "Failed to get user" });
   }
 
-  if (!userAddress) {
-    userAddress = user[0].ethAddresses[0] as Address;
+  if (!uA) {
+    uA = user[0].ethAddresses[0] as Address;
   }
-  if (!userAddress) return c.error({ message: "No user address found" });
+  if (!uA) return c.error({ message: "No user address found" });
 
-  if (!paymentCurrency)
-    return c.error({ message: "No payment currency found" });
-  if (!paymentOptions) return c.error({ message: "No payment options found" });
+  if (!pC) return c.error({ message: "No payment currency found" });
+  if (!pO) return c.error({ message: "No payment options found" });
   const dummyDepositAmount = parseUnits(`${amount}`, 6);
   if (!vault) {
     return c.error({ message: "Invalid payment currency" });
   }
+  const depositChain = previousState.dC;
+  if (!depositChain) return c.error({ message: "No deposit chain found" });
   const parameters = {
     //Actual payment amount that is used by glide
     paymentAmount: Number(amount),
     chainId: vault.chainId,
     abi: vaultABI,
     address: vault.address,
-    args: [dummyDepositAmount, userAddress],
+    args: [dummyDepositAmount, uA],
     functionName: "deposit",
-    paymentCurrency: paymentCurrency,
+    paymentCurrency: pC,
   };
-
-  const session = await createSession(GLIDE_CONFIG, parameters);
+  let session;
+  try {
+    session = await createSession(GLIDE_CONFIG, parameters);
+  } catch (e) {
+    console.log(e);
+    return c.error({ message: "Failed to create session" });
+  }
 
   const confirmImageProps = {
     inputLogo: session.paymentCurrencyLogoUrl,
@@ -230,7 +329,8 @@ app.frame("/payment", async (c) => {
     amountOutUsd: getRoundedDownFormattedTokenAmount(
       Number(session.paymentAmountUSD)
     ),
-    address: userAddress,
+    address: uA,
+    depositChain,
   };
 
   return c.res({
@@ -248,6 +348,7 @@ app.frame("/payment", async (c) => {
 app.frame("/final/:sessionId/", async (c) => {
   const { transactionId, buttonValue, previousState } = c;
   const vault = previousState.vault;
+  const depositChain = previousState.dC;
   const explorerUrl = getExplorerLink(vault.chainId);
 
   const { sessionId } = c.req.param();
@@ -273,7 +374,13 @@ app.frame("/final/:sessionId/", async (c) => {
     }
 
     // Get the current session state
-    const session = await getSessionById(GLIDE_CONFIG, sessionId);
+    let session;
+    try {
+      session = await getSessionById(GLIDE_CONFIG, sessionId);
+    } catch (error) {
+      console.log(error);
+      return c.error({ message: "failed to get session" });
+    }
 
     if (!session) {
       return c.error({ message: "Session not found" });
@@ -290,6 +397,7 @@ app.frame("/final/:sessionId/", async (c) => {
         amountOut: getRoundedDownFormattedTokenAmount(
           Number(session.paymentAmount)
         ),
+        depositChain: previousState.dC || "arbitrum",
       };
 
       return c.res({
@@ -300,6 +408,7 @@ app.frame("/final/:sessionId/", async (c) => {
           >
             View on Explorer
           </Button.Link>,
+          <Button.Reset>🏡</Button.Reset>,
         ],
       });
     } else {
@@ -316,14 +425,22 @@ app.frame("/final/:sessionId/", async (c) => {
   } catch (e) {
     return c.res({
       image: <ErrorImage />,
-      intents: [<Button action="/">🏡</Button>],
+      intents: [<Button.Reset>🏡</Button.Reset>],
     });
   }
 });
 
 app.transaction("/send-tx/:sessionId", async (c) => {
   const sessionId = c.req.param("sessionId");
-  const { unsignedTransaction } = await getSessionById(GLIDE_CONFIG, sessionId);
+  let unsignedTransaction;
+  try {
+    let res = await getSessionById(GLIDE_CONFIG, sessionId);
+    unsignedTransaction = res.unsignedTransaction;
+  } catch (error) {
+    console.log(error);
+    return c.error({ message: "failed to get session" });
+  }
+
   if (!unsignedTransaction) {
     throw new Error("missing unsigned transaction");
   }
@@ -360,13 +477,11 @@ function DepositingImage({
   currentTokens,
   vaultTitle,
 }: {
-  defaultTokens: State["paymentOptions"];
-  currentTokens: State["paymentOptionsOrder"];
+  defaultTokens: State["pO"];
+  currentTokens: State["pOO"];
   vaultTitle: string;
 }) {
   if (!defaultTokens) return null;
-
-  // const allTokens = getSortedPaymentOptions(defaultTokens, currentTokens);
 
   return (
     <div tw="absolute inset-0 flex flex-col items-center justify-center bg-[#21064e] p-6">
@@ -374,14 +489,14 @@ function DepositingImage({
         Depositing into {vaultTitle}
       </p>
       <div
-        tw="flex flex-wrap justify-center w-full px-20"
+        tw="flex flex-wrap justify-center w-full px-8"
         style={{ gap: "2rem", flexWrap: "wrap" }}
       >
         {defaultTokens.map((token) => (
           <div
             tw={`flex items-center px-12 py-4 rounded-full text-5xl
               ${
-                currentTokens.includes(token.paymentCurrency)
+                currentTokens.includes(token.pC)
                   ? "bg-[#03dd4d] text-[#21064e]"
                   : "bg-[#c8adff] text-[#21064e]"
               }
@@ -413,6 +528,7 @@ type ConfirmImageProps = {
   amountOut: string;
   amountOutUsd: string;
   address: Address;
+  depositChain: NonNullable<State["dC"]>;
 };
 
 function ConfirmImage({
@@ -425,6 +541,7 @@ function ConfirmImage({
   amountOut,
   amountOutUsd,
   address,
+  depositChain,
 }: ConfirmImageProps) {
   return (
     <div
@@ -505,11 +622,11 @@ function ConfirmImage({
         <span tw="text-[#c8adff]">Chain</span>
         <span style={{ gap: "4px" }} tw="flex items-center">
           <img
-            src="https://i.postimg.cc/L6CsRBQ4/arbitrum.png"
+            src={supportNetworks[depositChain].logo}
             width={50}
             height={50}
           />
-          <span>Arbitrum</span>
+          <span>{depositChain[0].toUpperCase() + depositChain.slice(1)}</span>
         </span>
       </div>
     </div>
@@ -544,6 +661,7 @@ type SuccessImageProps = {
   vaultName: string;
   amountIn: string;
   amountOut: string;
+  depositChain: string;
 };
 
 function SuccessImage({
@@ -551,6 +669,7 @@ function SuccessImage({
   vaultName,
   amountIn,
   amountOut,
+  depositChain,
 }: SuccessImageProps) {
   return (
     <div tw="w-full flex flex-col h-full items-center justify-center bg-[#2d0a6a] rounded-lg p-8 shadow-lg">
@@ -576,7 +695,7 @@ function SuccessImage({
         <span tw="text-[#c8adff]  text-center py-2 flex items-center">
           for{" "}
           <span tw="mx-4 text-[#03dd4d]">
-            {amountOut} {inputName}{" "}
+            {amountOut} {inputName} ({depositChain})
           </span>
         </span>
       </div>
