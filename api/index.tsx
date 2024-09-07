@@ -53,16 +53,19 @@ export const app = new Frog<{ State: State }>({
 const supportNetworks = {
   base: {
     ...base,
-    logo: "https://logo.synthfinance.com/base.org",
+    // logo: "https://logo.synthfinance.com/base.org",
+    logo: "https://tokenlogo.xyz/assets/chain/base.svg",
   },
   arbitrum: {
     ...arbitrum,
-    logo: "https://logo.synthfinance.com/arbitrum.io",
+    // logo: "https://logo.synthfinance.com/arbitrum.io",
+    logo: "https://tokenlogo.xyz/assets/chain/arbitrum.svg",
   },
 
   optimism: {
     ...optimism,
-    logo: "https://logo.synthfinance.com/docs.optimism.io",
+    logo: "https://tokenlogo.xyz/assets/chain/optimism.svg",
+    // logo: "https://cryptologos.cc/logos/optimism-ethereum-op-logo.png?v=033",
   },
   mainnet: {
     ...mainnet,
@@ -76,16 +79,12 @@ const supportedChains = Object.keys(supportNetworks).map((key) => {
 
 app.frame("/", (c) => {
   const { deriveState } = c;
-  //Always reset state on first page load
+  //Always reset deposit chain on first page load
   deriveState((state) => {
     state.dC = null;
-    state.vault = vaultList[0];
-    state.pO = [];
-    state.pOO = [];
-    state.uA = null;
   });
   return c.res({
-    image: "https://i.imgur.com/lAyOQ9v.png",
+    image: "https://i.ibb.co/ggHZQ8r/start.png",
     action: "/vaults/1",
     intents: [
       ...vaultList.map((vault, index) => (
@@ -124,8 +123,13 @@ app.frame("/vaults/:page", async (c) => {
 
     return c.res({
       image: (
-        <div tw="bg-amber-700 items-center flex flex-col justify-center text-center w-full h-full px-4">
-          <p>Where are you depositing from?</p>
+        <div tw="absolute inset-0 flex flex-col items-center justify-center bg-[#21064e] p-6">
+          <p
+            tw="text-7xl font-bold text-center w-full mb-12 text-[#c8adff]"
+            style={{ gap: "1rem" }}
+          >
+            What chain are you depositing from ?
+          </p>
         </div>
       ),
       action: "/vaults/1",
@@ -210,11 +214,10 @@ app.frame("/vaults/:page", async (c) => {
 
     pOO = pO.map((option) => option.pC);
 
-    const state = deriveState((state) => {
+    deriveState((state) => {
       state.pO = pO;
       state.pOO = pOO;
     });
-    console.log(JSON.stringify(state).length);
   }
 
   const TOKENS_PER_PAGE = 2;
@@ -248,8 +251,8 @@ app.frame("/vaults/:page", async (c) => {
     ),
     action: "/payment",
     intents: [
-      <TextInput placeholder="Enter the amount" />,
-      <Button action="/">🏡</Button>,
+      <TextInput placeholder="Enter the amount. Default: 1" />,
+      <Button.Reset>🏡</Button.Reset>,
       ...displayedpO.map((displayedOption) => (
         <Button value={`${displayedOption}`}>
           {pO.find((option) => option.pC === displayedOption)!.symbol +
@@ -269,6 +272,7 @@ app.frame("/payment", async (c) => {
   const pO = previousState.pO;
   const vault = previousState.vault;
   let amount = Number(inputText);
+  if (!amount) amount = 1;
   const { data: user, error: userError } = await sdkInstance.getUsersByFid([
     frameData.fid,
   ]);
@@ -344,6 +348,7 @@ app.frame("/payment", async (c) => {
 app.frame("/final/:sessionId/", async (c) => {
   const { transactionId, buttonValue, previousState } = c;
   const vault = previousState.vault;
+  const depositChain = previousState.dC;
   const explorerUrl = getExplorerLink(vault.chainId);
 
   const { sessionId } = c.req.param();
@@ -392,6 +397,7 @@ app.frame("/final/:sessionId/", async (c) => {
         amountOut: getRoundedDownFormattedTokenAmount(
           Number(session.paymentAmount)
         ),
+        depositChain: previousState.dC || "arbitrum",
       };
 
       return c.res({
@@ -419,7 +425,7 @@ app.frame("/final/:sessionId/", async (c) => {
   } catch (e) {
     return c.res({
       image: <ErrorImage />,
-      intents: [<Button action="/">🏡</Button>],
+      intents: [<Button.Reset>🏡</Button.Reset>],
     });
   }
 });
@@ -655,6 +661,7 @@ type SuccessImageProps = {
   vaultName: string;
   amountIn: string;
   amountOut: string;
+  depositChain: string;
 };
 
 function SuccessImage({
@@ -662,6 +669,7 @@ function SuccessImage({
   vaultName,
   amountIn,
   amountOut,
+  depositChain,
 }: SuccessImageProps) {
   return (
     <div tw="w-full flex flex-col h-full items-center justify-center bg-[#2d0a6a] rounded-lg p-8 shadow-lg">
@@ -687,7 +695,7 @@ function SuccessImage({
         <span tw="text-[#c8adff]  text-center py-2 flex items-center">
           for{" "}
           <span tw="mx-4 text-[#03dd4d]">
-            {amountOut} {inputName}{" "}
+            {amountOut} {inputName} ({depositChain})
           </span>
         </span>
       </div>
