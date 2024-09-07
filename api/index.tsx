@@ -48,6 +48,7 @@ export const app = new Frog<{ State: State }>({
     dC: null,
   },
   title: "Cross deposit into pool together",
+  browserLocation: "https://cabana-glide.vercel.app/vaults",
 });
 
 const supportNetworks = {
