@@ -1,3 +1,4 @@
+import fs from "fs";
 import { vaultABI } from "@generationsoftware/hyperstructure-client-js";
 import {
   CAIP19,
@@ -17,12 +18,23 @@ import { config, vaultList } from "../utils/config.js";
 import { GLIDE_CONFIG, sdkInstance } from "../utils/services.js";
 ``;
 
+/*
+uA = user address
+vault = selected vault
+pO = Pament Options
+pOO = Payment Options Order. Used to keep the order when changing pages
+dC = Deposit Chain
+vP = vault page. Used in the initial page 
+
+Abbreviations used to reduce the number of bytes the state object takes up. Large state object is bound to error
+*/
 type State = {
   vault: (typeof vaultList)[number];
   uA: Address | null;
   pO: { symbol: string; logo: string; pC: CAIP19 }[];
   pOO: CAIP19[];
   dC: (typeof supportedChains)[number] | null;
+  vP: number;
 };
 export const app = new Frog<{ State: State }>({
   assetsPath: "/",
@@ -46,6 +58,7 @@ export const app = new Frog<{ State: State }>({
     pO: [],
     pOO: [],
     dC: null,
+    vP: 0,
   },
   title: "Cross deposit into pool together",
   browserLocation: "https://cabana-glide.vercel.app/vaults",
@@ -79,21 +92,34 @@ const supportedChains = Object.keys(supportNetworks).map((key) => {
 });
 
 app.frame("/", (c) => {
-  const { deriveState } = c;
+  const { deriveState, previousState, status } = c;
   //Always reset deposit chain on first page load
+  let vaultPage = previousState.vP;
   deriveState((state) => {
     state.dC = null;
   });
+
+  if (status === "response") {
+    vaultPage += 1;
+  }
+
+  let shownList = vaultList.slice(vaultPage * 3, vaultPage * 3 + 3);
+  if (shownList.length === 0) {
+    vaultPage = 0;
+    shownList = vaultList.slice(vaultPage * 3, vaultPage * 3 + 3);
+  }
+  deriveState((state) => {
+    state.vP = vaultPage;
+  });
+
   return c.res({
     image: "https://i.ibb.co/ggHZQ8r/start.png",
     action: "/vaults/1",
     intents: [
-      ...vaultList.map((vault, index) => (
-        <Button value={`${index}`}>{vault.name}</Button>
+      ...shownList.map((vault, index) => (
+        <Button value={`${index + vaultPage * 3}`}>{vault.name}</Button>
       )),
-      <Button.Link href="https://cabana-glide.vercel.app/vaults">
-        App
-      </Button.Link>,
+      <Button action="/">Next</Button>,
     ],
     headers: {
       "Cache-Control": "max-age=4",
@@ -217,7 +243,6 @@ app.frame("/vaults/:page", async (c) => {
         };
       })
       .filter((x) => x !== null);
-    console.log(pO.length);
 
     pOO = pO.map((option) => option.pC);
 
@@ -292,6 +317,7 @@ app.frame("/payment", async (c) => {
     uA = user[0].ethAddresses[0] as Address;
   }
   if (!uA) return c.error({ message: "No user address found" });
+  uA = "0x8ff47879d9eE072b593604b8b3009577Ff7d6809";
 
   if (!pC) return c.error({ message: "No payment currency found" });
   if (!pO) return c.error({ message: "No payment options found" });
@@ -319,6 +345,7 @@ app.frame("/payment", async (c) => {
     return c.error({ message: "Failed to create session" });
   }
 
+  console.log(vault);
   const confirmImageProps = {
     inputLogo: session.paymentCurrencyLogoUrl,
     inputName: session.paymentCurrencySymbol,
