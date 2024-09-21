@@ -119,7 +119,7 @@ app.frame("/", (c) => {
       ...shownList.map((vault, index) => (
         <Button value={`${index + vaultPage * 3}`}>{vault.name}</Button>
       )),
-      <Button action="/">Next</Button>,
+      <Button action="/"> ⏭️ </Button>,
     ],
     headers: {
       "Cache-Control": "max-age=4",
