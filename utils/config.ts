@@ -41,6 +41,14 @@ export const vaultList = [
     title: "przWETH on Optimism",
     logo: "https://basescan.org/token/images/weth_28.png",
   },
+  {
+    chainId: base.id,
+    address: "0x6B5a5c55E9dD4bb502Ce25bBfbaA49b69cf7E4dd" as Address,
+    name: "przPOOL Base",
+    title: "przPOOL on Base",
+    logo: "https://app.cabana.fi/icons/przPOOL.svg",
+  },
+
 
   {
     chainId: arbitrum.id,
@@ -70,6 +78,14 @@ export const vaultList = [
     title: "przPOOL on Optimism",
     logo: "https://app.cabana.fi/icons/przPOOL.svg",
   },
+  {
+    chainId: base.id,
+    address: "0x4e42f783db2d0c5bdff40fdc66fcae8b1cda4a43" as Address,
+    name: "przWETH Base",
+    title: "przWETH on Base",
+    logo: "https://basescan.org/token/images/weth_28.png",
+  },
+  
 ];
 
 export const config = configSchema.parse(process.env);
