@@ -1,4 +1,3 @@
-import fs from "fs";
 import { vaultABI } from "@generationsoftware/hyperstructure-client-js";
 import {
   CAIP19,
@@ -9,9 +8,8 @@ import {
 } from "@paywithglide/glide-js";
 import { Button, Frog, TextInput } from "frog";
 import { devtools } from "frog/dev";
-import { serveStatic } from "frog/serve-static";
 import { handle } from "frog/vercel";
-import { hexToBigInt, parseUnits } from "viem";
+import { parseUnits } from "viem";
 import { Address } from "viem/accounts";
 import { arbitrum, base, mainnet, optimism } from "viem/chains";
 import { config, vaultList } from "../utils/config.js";
@@ -39,15 +37,14 @@ type State = {
 export const app = new Frog<{ State: State }>({
   assetsPath: "/",
   basePath: "/api",
-  ...(config.AIRSTACK_API_KEY
-    ? {
-        hub: {
-          apiUrl: "https://hubs.airstack.xyz",
-          fetchOptions: {
-            headers: {
-              "x-airstack-hubs": config.AIRSTACK_API_KEY,
-              "Cache-Control": "max-age=4",
-            },
+  ...(config.AIRSTACK_API_KEY ? {
+    hub: {
+      apiUrl: "https://hubs.airstack.xyz",
+      fetchOptions: {
+        headers: {
+          "x-airstack-hubs": config.AIRSTACK_API_KEY,
+          "Cache-Control": "max-age=4",
+        },
           },
         },
       }

@@ -6,27 +6,23 @@ import { Address } from "viem/accounts";
 dotenv.config();
 
 const configSchema = z.object({
-  GLIDE_PROJECT_ID: z.string(),
+  GLIDE_PROJECT_ID: z.string({
+    required_error: "GLIDE_PROJECT_ID is required in .env file",
+  }),
   NEYNAR_API_KEY: z.string().optional(),
   AIRSTACK_API_KEY: z.string().optional(),
 });
 
-export const vaultList = [
-  {
-    chainId: optimism.id,
-    address: "0x03D3CE84279cB6F54f5e6074ff0F8319d830dafe" as Address,
-    name: "przUSDC OP",
-    title: "przUSDC on Optimism",
-    logo: "https://cryptologos.cc/logos/usd-coin-usdc-logo.svg?v=029",
-  },
+export type VaultConfig = {
+  chainId: number;
+  address: Address;
+  name: string;
+  title: string;
+  logo: string;
+};
 
-  {
-    chainId: base.id,
-    address: "0x7f5C2b379b88499aC2B997Db583f8079503f25b9" as Address,
-    name: "przUSDC BASE",
-    title: "przUSDC on Base",
-    logo: "https://cryptologos.cc/logos/usd-coin-usdc-logo.svg?v=029",
-  },
+export const vaultList: VaultConfig[] = [
+  // Arbitrum
   {
     chainId: arbitrum.id,
     address: "0x3c72A2A78C29D1f6454CAA1bcB17a7792a180a2e" as Address,
@@ -35,11 +31,20 @@ export const vaultList = [
     logo: "https://cryptologos.cc/logos/usd-coin-usdc-logo.svg?v=029",
   },
   {
-    chainId: optimism.id,
-    address: "0x2998c1685E308661123F64B333767266035f5020" as Address,
-    name: "przWETH OP",
-    title: "przWETH on Optimism",
+    chainId: arbitrum.id,
+    address: "0x7b0949204e7Da1B0beD6d4CCb68497F51621b574" as Address,
+    name: "przWETH ARB",
+    title: "przWETH on Arbitrum",
     logo: "https://basescan.org/token/images/weth_28.png",
+  },
+
+  // Base
+  {
+    chainId: base.id,
+    address: "0x7f5C2b379b88499aC2B997Db583f8079503f25b9" as Address,
+    name: "przUSDC BASE",
+    title: "przUSDC on Base",
+    logo: "https://cryptologos.cc/logos/usd-coin-usdc-logo.svg?v=029",
   },
   {
     chainId: base.id,
@@ -48,13 +53,27 @@ export const vaultList = [
     title: "przPOOL on Base",
     logo: "https://app.cabana.fi/icons/przPOOL.svg",
   },
-
-
   {
-    chainId: arbitrum.id,
-    address: "0x7b0949204e7Da1B0beD6d4CCb68497F51621b574" as Address,
-    name: "przWETH ARB",
-    title: "przWETH on Arbitrum",
+    chainId: base.id,
+    address: "0x4e42f783db2d0c5bdff40fdc66fcae8b1cda4a43" as Address,
+    name: "przWETH Base",
+    title: "przWETH on Base",
+    logo: "https://basescan.org/token/images/weth_28.png",
+  },
+
+  // Optimism
+  {
+    chainId: optimism.id,
+    address: "0x03D3CE84279cB6F54f5e6074ff0F8319d830dafe" as Address,
+    name: "przUSDC OP",
+    title: "przUSDC on Optimism",
+    logo: "https://cryptologos.cc/logos/usd-coin-usdc-logo.svg?v=029",
+  },
+  {
+    chainId: optimism.id,
+    address: "0x2998c1685E308661123F64B333767266035f5020" as Address,
+    name: "przWETH OP",
+    title: "przWETH on Optimism",
     logo: "https://basescan.org/token/images/weth_28.png",
   },
   {
@@ -78,14 +97,6 @@ export const vaultList = [
     title: "przPOOL on Optimism",
     logo: "https://app.cabana.fi/icons/przPOOL.svg",
   },
-  {
-    chainId: base.id,
-    address: "0x4e42f783db2d0c5bdff40fdc66fcae8b1cda4a43" as Address,
-    name: "przWETH Base",
-    title: "przWETH on Base",
-    logo: "https://basescan.org/token/images/weth_28.png",
-  },
-  
 ];
 
 export const config = configSchema.parse(process.env);
